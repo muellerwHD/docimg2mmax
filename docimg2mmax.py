@@ -15,12 +15,17 @@ def docimg2mmax_worker(args, folder_chunk, mmax2_target_folder, proc_namespace):
             print("\nProcessing images in folder "+os.path.abspath(img_folder_name), file=sys.stderr)
         # Use name of folder with images as base for MMAX2 project name
         # If .mmax file exists, it will not be re-created.
-        mmax2_proj_name   = create_mmax2_stub(os.path.basename(img_folder_name), mmax2_target_folder, 
-                                              clear_basedata=True, clear_levels=['ocr_words', 'ocr_lines'], verbose=False)
-        mmax2_disc = MMAX2Discourse(mmax2_proj_name, verbose=False)
+        mmax2_proj_name   = create_mmax2_stub(os.path.basename(img_folder_name), 
+                                              mmax2_target_folder, 
+                                              clear_basedata=True, 
+                                              clear_levels=['ocr_words', 
+                                                            'ocr_lines'], 
+                                              verbose=False)
+        mmax2_disc = MMAX2Discourse(mmax2_proj_name, 
+                                    verbose=False)
         mmax2_disc.load_markables(verbose=False)
         if args.verbose: 
-            print("  Creating "+os.path.abspath(mmax2_proj_name), file=sys.stderr)
+            print("!!!!!!!  Creating "+os.path.abspath(mmax2_proj_name), file=sys.stderr)
         pages=None
         # pages is 1-based,so 0 means all
         if args.pages != "0":
@@ -28,25 +33,56 @@ def docimg2mmax_worker(args, folder_chunk, mmax2_target_folder, proc_namespace):
         # Sort numerically by page number in order to keep correct import order.
         # This will only find *original* files in the image folder, not those in the /decol**/ sub-folder
         # Choice of decol images is controlled in the png_to_hocr method
-        png_files = [a[0] for a in 
-                sorted([(f, int( os.path.basename(f)[os.path.basename(f).rfind('-')+1:os.path.basename(f).rfind('.')] )) 
-                for f in glob(img_folder_name+os.path.sep+"*.*") if f.lower().endswith('.png')], key=itemgetter(1))]
+
+        png_files = sorted(glob(img_folder_name 
+                                + os.path.sep 
+                                + "**" 
+                                + os.path.sep
+                                + "*.png",recursive=True))
+
+
+        print("Processing files %s" % png_files)
+
+        if False:
+            png_files = [a[0] for a in 
+                         sorted([(f, int( os.path.basename(f)[os.path.basename(f).rfind('-')+1:os.path.basename(f).rfind('.')] )) 
+                                 for f in glob(img_folder_name+os.path.sep+"*.*") if f.lower().endswith('.png')], key=itemgetter(1))]
+
+
+
         for page_idx, png_file in enumerate(png_files):
             page_no = page_idx+1
             if pages and page_no not in pages:
                 print("Skipping page no "+str(page_no), file=sys.stderr)
                 continue
             hocr = png_to_hocr(png_file, 
-                              ['--oem',args.oem,'--psm',args.psm,'--dpi',args.dpi,'-c','tessedit_create_hocr=1','-c','hocr_char_boxes=1','--tessdata-dir',args.tessdata_dir],
+                              ["-l","eng",'--dpi',args.dpi,
+                               '-c','tessedit_create_hocr=1',
+                               # '-c',
+                               # 'hocr_char_boxes=1',
+                               '--tessdata-dir',args.tessdata_dir],
                               args.tmp_path+os.path.sep+proc_namespace+"_tessout.tmp", 
                               normalize_unicode=True, decolor=args.decolor_for_ocr, grey_thresh=50, black_thresh=100, verbose=args.verbose)
 
-            hocr_to_mmax2(hocr, page_no, mmax2_disc, os.path.basename(png_file), 
-                ignore_empty_chars=True, split_merged_chars=True, normalize_variants=False, separate_numbers=args.separate_numbers, verbose=args.verbose)
+            hocr_to_mmax2(hocr, 
+                          page_no, 
+                          mmax2_disc, 
+                          os.path.basename(png_file), 
+                          ignore_empty_chars=True, 
+                          split_merged_chars=True, 
+                          normalize_variants=False, 
+                          separate_numbers=args.separate_numbers, 
+                          verbose=args.verbose)
 
             if args.detect_markup:
-                extract_markup(png_file, mmax2_disc, page_no, vertical=True, horizontal=True,
-                        grey_thresh=int(args.markup_grey_threshold), marked_thresh=int(args.markup_marked_threshold), verbose=args.verbose)
+                extract_markup(png_file, 
+                               mmax2_disc, 
+                               page_no, 
+                               vertical=True, 
+                               horizontal=True,
+                               grey_thresh=int(args.markup_grey_threshold), 
+                               marked_thresh=int(args.markup_marked_threshold),
+                               verbose=args.verbose)
 
         if not args.detect_markup:
             # Set markup default 
@@ -54,13 +90,25 @@ def docimg2mmax_worker(args, folder_chunk, mmax2_target_folder, proc_namespace):
                 wo.update_attributes({'markup': '0'})
         else:
             # Create HTML page
-            drawable_markup_per_page=extract_drawable_markup(png_files, mmax2_disc, args.min_markup_percentage)
-            create_html_document(drawable_markup_per_page, args.html_target_folder+os.path.sep+os.path.basename(mmax2_proj_name)+".html", mmax2_disc, margin_width=1500, scale_by=2)
+            drawable_markup_per_page=extract_drawable_markup(png_files, 
+                                                             mmax2_disc, 
+                                                             args.min_markup_percentage)
+            create_html_document(drawable_markup_per_page,
+                                 args.html_target_folder+os.path.sep+os.path.basename(mmax2_proj_name)+".html",
+                                 mmax2_disc,
+                                 margin_width=1500,
+                                 scale_by=2)
 
         mmax2_disc.get_basedata().write(dtd_base_path='"', overwrite=True)
-        mmax2_disc.get_level('ocr_words').write(to_path=mmax2_disc.get_mmax2_path()+mmax2_disc.get_markable_path(),  overwrite=True, no_backup=True)
-        mmax2_disc.get_level('ocr_lines').write(to_path=mmax2_disc.get_mmax2_path()+mmax2_disc.get_markable_path(),  overwrite=True, no_backup=True)
-        mmax2_disc.get_level('text_words').write(to_path=mmax2_disc.get_mmax2_path()+mmax2_disc.get_markable_path(), overwrite=True, no_backup=True)
+        mmax2_disc.get_level('ocr_words').write(to_path=mmax2_disc.get_mmax2_path()+mmax2_disc.get_markable_path(),
+                                                overwrite=True,
+                                                no_backup=True)
+        mmax2_disc.get_level('ocr_lines').write(to_path=mmax2_disc.get_mmax2_path()+mmax2_disc.get_markable_path(),
+                                                overwrite=True,
+                                                no_backup=True)
+        mmax2_disc.get_level('text_words').write(to_path=mmax2_disc.get_mmax2_path()+mmax2_disc.get_markable_path(),
+                                                 overwrite=True,
+                                                 no_backup=True)
         print(mmax2_disc.info(), file=sys.stderr)
 
 def docimg2mmax(args):
@@ -82,7 +130,11 @@ def docimg2mmax(args):
     # Start processing
     procs=[]
     for folder_chunk in get_chunks(sorted([os.path.dirname(f) for f in glob(args.img_folders)]), int(args.workers)):
-        p = Process(target=docimg2mmax_worker, args=(args, folder_chunk, mmax2_target_folder, str(os.getpid())+"_"+str(len(procs))))
+        p = Process(target=docimg2mmax_worker,
+                    args=(args,
+                          folder_chunk,
+                          mmax2_target_folder,
+                          str(os.getpid())+"_"+str(len(procs))))
         p.start()
         procs.append(p)
     for p in procs: p.join()

@@ -375,6 +375,8 @@ def png_to_hocr(png_file="", tess_args=[], outfile_name='.'+os.path.sep+'tessout
     targs=['tesseract', png_file, outfile_name]
     targs.extend(tess_args)
     if verbose:
+        print("Tesseract command line: %s" % targs)
+        print(" ".join(targs))
         print("     ## tesseract output ##", file=sys.stderr)
     res=subprocess.run(targs, capture_output=True).stderr.decode(sys.getfilesystemencoding()).strip()
     if verbose:

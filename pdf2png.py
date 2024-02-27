@@ -1,5 +1,5 @@
 import argparse, os, sys, subprocess
-from PyPDF2 import PdfFileReader
+from pypdf import PdfReader
 from glob import glob
 import regex as re
 from operator import itemgetter
@@ -34,9 +34,22 @@ if __name__ == '__main__':
         else:
             print(target_folder+" exists, skipping", file=sys.stderr)
             continue
-        for n in [a+1 for a in range(0,PdfFileReader(open(f,'rb')).getNumPages())]:
+        pdfReader = PdfReader(open(f,'rb'));
+
+        num_pages = len(pdfReader.pages)
+
+        for n in [a+1 for a in range(0,num_pages)]:
             print(" Converting page "+str(n), file=sys.stderr)
             subprocess.check_output(["pdftocairo", "-r", ns.dpi, "-png", "-f", str(n) , "-l", str(n) , f, target_folder+os.path.sep+namebase])
+
+            
+            output_name = target_folder+os.path.sep+namebase + "-%d.png" % n
+            framed_output_name = target_folder+os.path.sep+namebase + "-%d_framed.png" %n
+
+            print("Frame around it");
+            subprocess.check_output(["/usr/bin/convert",output_name,"-bordercolor","White","-border","10x10",framed_output_name])
+            subprocess.check_output(["mv",framed_output_name,output_name])
+
         if ns.decolor:
             for i in glob(target_folder+os.path.sep+namebase+"*.png"):
                 print(" Decoloring page "+str(os.path.basename(i)), file=sys.stderr)
