@@ -43,7 +43,7 @@ def docimg2mmax_worker(args, folder_chunk, mmax2_target_folder, proc_namespace):
 
         print("Processing files %s" % png_files)
 
-        if False:
+        if False: # old code
             png_files = [a[0] for a in 
                          sorted([(f, int( os.path.basename(f)[os.path.basename(f).rfind('-')+1:os.path.basename(f).rfind('.')] )) 
                                  for f in glob(img_folder_name+os.path.sep+"*.*") if f.lower().endswith('.png')], key=itemgetter(1))]
@@ -55,19 +55,28 @@ def docimg2mmax_worker(args, folder_chunk, mmax2_target_folder, proc_namespace):
             if pages and page_no not in pages:
                 print("Skipping page no "+str(page_no), file=sys.stderr)
                 continue
+            tesseract_output_file_name = args.tmp_path+os.path.sep+proc_namespace+"_tessout.tmp"
             hocr = png_to_hocr(png_file, 
                               ["-l","eng",'--dpi',args.dpi,
                                '-c','tessedit_create_hocr=1',
                                # '-c',
                                # 'hocr_char_boxes=1',
                                '--tessdata-dir',args.tessdata_dir],
-                              args.tmp_path+os.path.sep+proc_namespace+"_tessout.tmp", 
-                              normalize_unicode=True, decolor=args.decolor_for_ocr, grey_thresh=50, black_thresh=100, verbose=args.verbose)
+                               tesseract_output_file_name,# war hier so
+                               normalize_unicode=True, 
+                               decolor=args.decolor_for_ocr, 
+                               grey_thresh=50, 
+                               black_thresh=100, 
+                               verbose=args.verbose)
+
+            print("HOCR%s/HOCR" % hocr);
+
 
             hocr_to_mmax2(hocr, 
                           page_no, 
                           mmax2_disc, 
                           os.path.basename(png_file), 
+                          # tesseract_output_file_name, # geändert statt basename
                           ignore_empty_chars=True, 
                           split_merged_chars=True, 
                           normalize_variants=False, 
@@ -99,7 +108,8 @@ def docimg2mmax_worker(args, folder_chunk, mmax2_target_folder, proc_namespace):
                                  margin_width=1500,
                                  scale_by=2)
 
-        mmax2_disc.get_basedata().write(dtd_base_path='"', overwrite=True)
+        mmax2_disc.get_basedata().write(dtd_base_path='"', 
+                                        overwrite=True)
         mmax2_disc.get_level('ocr_words').write(to_path=mmax2_disc.get_mmax2_path()+mmax2_disc.get_markable_path(),
                                                 overwrite=True,
                                                 no_backup=True)
@@ -109,7 +119,8 @@ def docimg2mmax_worker(args, folder_chunk, mmax2_target_folder, proc_namespace):
         mmax2_disc.get_level('text_words').write(to_path=mmax2_disc.get_mmax2_path()+mmax2_disc.get_markable_path(),
                                                  overwrite=True,
                                                  no_backup=True)
-        print(mmax2_disc.info(), file=sys.stderr)
+        print(mmax2_disc.info(), 
+              file=sys.stderr)
 
 def docimg2mmax(args):
     # Create folders, if neccessary

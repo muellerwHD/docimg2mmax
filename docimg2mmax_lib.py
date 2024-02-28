@@ -11,7 +11,7 @@ PROGBARWIDTH    =   100
 
 def extract_drawable_markup(png_files, mmax2_disc, min_markup_percentage):
     drawable_markup_per_page={}
-    for page_idx, page_path in enumerate(png_files):                
+    for page_idx, page_path in enumerate(png_files):
         page_no = page_idx+1
         markup_bd_sequence=[]
         seq_count=0
@@ -391,16 +391,34 @@ def png_to_hocr(png_file="", tess_args=[], outfile_name='.'+os.path.sep+'tessout
 
 # Convert string in hocr format (producd ed by e.g. tesseract) into MMAX2 basedata, 
 # creating ocr_words and ocr_lines on the respectove markable levels.
-def hocr_to_mmax2(hocr_string, page_no, mmax2_disc, img_name, ignore_empty_chars=False, split_merged_chars=False, normalize_variants=False, separate_numbers=True, verbose=False, debug=False):
-    if verbose: print("    hocr_to_mmax2, page "+str(page_no), file=sys.stderr)
-    hocr_soup = bs(hocr_string, 'lxml')
-    # Go over all spans of class 'ocr_line'. Each has the line words as its children.
-    if debug: print(hocr_soup)
+def hocr_to_mmax2(hocr_string, 
+                  page_no, 
+                  mmax2_disc, 
+                  img_name, 
+                  ignore_empty_chars=False, 
+                  split_merged_chars=False, 
+                  normalize_variants=False, 
+                  separate_numbers=True, 
+                  verbose=False, 
+                  debug=False):
 
-    line_spans = [s for s in hocr_soup.descendants if s.name == 'span' and 'ocr_line' in s['class']]
+    if verbose: print("    hocr_to_mmax2, page "+str(page_no), file=sys.stderr)
+
+    hocr_soup = bs(hocr_string, 'lxml')
+
+    # Go over all spans of class 'ocr_line'. Each has the line words as its children.
+    if debug or True: 
+        print(hocr_soup)
+
+    line_spans = [s for s in hocr_soup.descendants 
+                  if s.name == 'span' and 'ocr_line' in s['class']]
     for line_span in line_spans:
         line_string,stringindex2wordid,wordid2title,wordid2charconfs,wordid2worstcharconf,wordid2charbboxes=\
-                analyse_hocr_line_span(line_span, ignore_empty_chars=ignore_empty_chars, split_merged_chars=split_merged_chars)
+                analyse_hocr_line_span(line_span, 
+                                       ignore_empty_chars=ignore_empty_chars, 
+                                       split_merged_chars=split_merged_chars)
+        print ("Line Span:   _%s_ " % line_span)
+        print ("Line String: _%s_ " % line_string)
         if line_string.strip() == "":   continue
 
         if normalize_variants:
@@ -424,9 +442,9 @@ def hocr_to_mmax2(hocr_string, page_no, mmax2_disc, img_name, ignore_empty_chars
                         if mapping[j] not in current_bd_span:   current_bd_span.append(mapping[j])
                     except KeyError:    pass
                 # Add ocr_word markable
-                if debug: print(current_bd_span)
+                if debug or True: print(current_bd_span)
                 was_added, m = mmax2_disc.get_level("ocr_words").add_markable([current_bd_span], allow_duplicate_spans=False)
-                if debug: print(m.to_xml())
+                if debug or True: print(m.to_xml())
                 assert was_added
                 # Set attribute to ocr word. There is a 1-to-1 mapping between ocr_word markables and title attributes
                 # bbox 588 827 622 837; x_wconf 96
@@ -470,18 +488,26 @@ def hocr_to_mmax2(hocr_string, page_no, mmax2_disc, img_name, ignore_empty_chars
         was_added, m = mmax2_disc.get_level("ocr_lines").add_markable([line_bd_ids], allow_duplicate_spans=False)
         assert was_added
         bbox=line_span['title'].split(";")[0][5:]
-        m.update_attributes({'line_bbox':bbox , 'image':img_name, 'page_no':str(page_no)})
+        m.update_attributes({'line_bbox':bbox , 
+                             'image':img_name, 
+                             'page_no':str(page_no)})
     return
 
 
 
 def analyse_hocr_line_span(line_span, ignore_empty_chars=False, split_merged_chars=False):
-    line_string = ""        
+    line_string = ""
     stringindex2wordid, wordid2title, wordid2charconfs, wordid2charbboxes, wordid2worstcharconf = {}, {}, {}, {}, {}
-    for word_span in [s for s in line_span.descendants if s.name == 'span' and 'ocrx_word' in s['class']]:
+    for word_span in [s for s in line_span.descendants 
+                      if s.name == 'span' and 'ocrx_word' in s['class']]:
+
+        print("WORDSPAN%s/WORDSPAN" % word_span)
+
         word_text, char_confs, char_bboxes="","",""
         worst_char_conf = 100
-        for c in [d for d in word_span.descendants if d.name=='span' and 'ocrx_cinfo' in d['class']]:
+        for c in [d for d in word_span.descendants 
+                  if d.name=='span' and 'ocrx_cinfo' in d['class']]:
+            print("DESCENDANT%s/DESCENDANT" % word_span)
             # Build up word from single chars
             if ignore_empty_chars and len(c.text.strip())==0:
                 continue
