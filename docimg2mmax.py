@@ -19,7 +19,8 @@ def docimg2mmax_worker(args, folder_chunk, mmax2_target_folder, proc_namespace):
                                               mmax2_target_folder, 
                                               clear_basedata=True, 
                                               clear_levels=['ocr_words', 
-                                                            'ocr_lines'], 
+                                                            'ocr_lines',
+                                                            'named_entities'], 
                                               verbose=False)
         mmax2_disc = MMAX2Discourse(mmax2_proj_name, 
                                     verbose=False)
@@ -48,8 +49,6 @@ def docimg2mmax_worker(args, folder_chunk, mmax2_target_folder, proc_namespace):
                          sorted([(f, int( os.path.basename(f)[os.path.basename(f).rfind('-')+1:os.path.basename(f).rfind('.')] )) 
                                  for f in glob(img_folder_name+os.path.sep+"*.*") if f.lower().endswith('.png')], key=itemgetter(1))]
 
-
-
         for page_idx, png_file in enumerate(png_files):
             page_no = page_idx+1
             if pages and page_no not in pages:
@@ -59,8 +58,9 @@ def docimg2mmax_worker(args, folder_chunk, mmax2_target_folder, proc_namespace):
             hocr = png_to_hocr(png_file, 
                               ["-l","eng",'--dpi',args.dpi,
                                '-c','tessedit_create_hocr=1',
-                               # '-c',
-                               # 'hocr_char_boxes=1',
+                               #, "-c","lstm_choice_mode=1", 
+                               #"-c","lstm_choice_iterations=0",
+                               '-c', 'hocr_char_boxes=1',
                                '--tessdata-dir',args.tessdata_dir],
                                tesseract_output_file_name,# war hier so
                                normalize_unicode=True, 
@@ -119,6 +119,10 @@ def docimg2mmax_worker(args, folder_chunk, mmax2_target_folder, proc_namespace):
         mmax2_disc.get_level('text_words').write(to_path=mmax2_disc.get_mmax2_path()+mmax2_disc.get_markable_path(),
                                                  overwrite=True,
                                                  no_backup=True)
+        assert(1==0) # continue coding here
+        mmax2_disc.get_level('named_entities').write(to_path=mmax2_disc.get_mmax2_path()+mmax2_disc.get_markable_path(),
+                                                 overwrite=True,
+                                                 no_backup=True)
         print(mmax2_disc.info(), 
               file=sys.stderr)
 
@@ -140,44 +144,92 @@ def docimg2mmax(args):
 
     # Start processing
     procs=[]
-    for folder_chunk in get_chunks(sorted([os.path.dirname(f) for f in glob(args.img_folders)]), int(args.workers)):
-        p = Process(target=docimg2mmax_worker,
-                    args=(args,
-                          folder_chunk,
-                          mmax2_target_folder,
-                          str(os.getpid())+"_"+str(len(procs))))
-        p.start()
-        procs.append(p)
-    for p in procs: p.join()
+
+    trace_it = True
+
+    if not trace_it:
+
+        for folder_chunk in get_chunks(sorted([os.path.dirname(f) for f in glob(args.img_folders)]), int(args.workers)):
+            p = Process(target=docimg2mmax_worker,
+                        args=(args,
+                              folder_chunk,
+                              mmax2_target_folder,
+                              str(os.getpid())+"_"+str(len(procs))))
+            p.start()
+            procs.append(p)
+            for p in procs: p.join()
+
+    else:
+        for folder_chunk in get_chunks(sorted([os.path.dirname(f) for f in glob(args.img_folders)]), int(args.workers)):
+            print("SERIAL")
+            docimg2mmax_worker(args,
+                               folder_chunk,
+                               mmax2_target_folder,
+                               str(os.getpid())+"_"+str(len(procs)))
+            print("/SERIAL")
+
 
 #############################################
 if __name__ == '__main__': 
-#############################################    
+#############################################
     parser = argparse.ArgumentParser()
     # Folders of PNG files to be imported. Use quotation marks if argument contains a wildcard: "./imagefile/*/"
-    # We expect one folder per document with the individual page file names to *end with* -01.png, 
+    # We expect one folder per document with the individual page file names to *end with* -01.png,
     # so that we can extract the page number. This is the format produced by the pdf2png tool.
-    parser.add_argument('--img_folders',                default=None, required=True)
+    parser.add_argument('--img_folders',
+                        default=None,
+                        required=True)
     # This is the path to the folder *containing* the MMAX2 folder!
-    parser.add_argument('--mmax2_target_folder',        default=None, required=True)
-    parser.add_argument('--html_target_folder',         default ="."+os.path.sep+"html"+os.path.sep)
+    parser.add_argument('--mmax2_target_folder',
+                        default=None,
+                        required=True)
+    parser.add_argument('--html_target_folder',
+                        default ="."+os.path.sep+"html"+os.path.sep)
     # For parallelization
-    parser.add_argument('--workers',                    default="1")
-    parser.add_argument('--pages',                      default="0")
-    parser.add_argument('--verbose',                    default=False, dest='verbose', action='store_true')
-    parser.add_argument('--tmp_path',                   default="."+os.path.sep+"tmp"+os.path.sep)
-    parser.add_argument('--no_decolor_for_ocr',         default=True, dest='decolor_for_ocr', action='store_false')
+    parser.add_argument('--workers',
+                        default="1")
+    parser.add_argument('--pages',
+                        default="0")
+    parser.add_argument('--verbose',
+                        default=False,
+                        dest='verbose',
+                        action='store_true')
+    parser.add_argument('--tmp_path',
+                        default="."+os.path.sep+"tmp"+os.path.sep)
+    parser.add_argument('--no_decolor_for_ocr',
+                        default=True,
+                        dest='decolor_for_ocr',
+                        action='store_false')
 
-    parser.add_argument('--detect_markup',              default=False, dest='detect_markup', action='store_true')
-    parser.add_argument('--markup_grey_threshold',      default="10")
-    parser.add_argument('--markup_marked_threshold',    default="10")
-    parser.add_argument('--min_markup_percentage',      default="40")
+    parser.add_argument('--detect_markup',
+                        default=False,
+                        dest='detect_markup',
+                        action='store_true')
+
+
+    parser.add_argument('--markup_grey_threshold',
+                        default="10")
+    parser.add_argument('--markup_marked_threshold',
+                        default="10")
+    parser.add_argument('--min_markup_percentage',
+                        default="40")
     # For tokenization
-    parser.add_argument('--no_separate_numbers',        default=True, dest='separate_numbers', action='store_false')
+    parser.add_argument('--no_separate_numbers',
+                        default=True,
+                        dest='separate_numbers',
+                        action='store_false')
     # tesseract parameters. Stick to actual parameter names (except _ for -)
-    parser.add_argument('--tessdata_dir',               default=None, required=True)
-    parser.add_argument('--oem',                        default=None, required=True)
-    parser.add_argument('--psm',                        default=None, required=True)
-    parser.add_argument('--dpi',                        default=None, required=True)
+    parser.add_argument('--tessdata_dir',
+                        default=None,
+                        required=True)
+    parser.add_argument('--oem',
+                        default=None,
+                        required=True)
+    parser.add_argument('--psm',
+                        default=None,
+                        required=True)
+    parser.add_argument('--dpi',
+                        default=None,
+                        required=True)
 
     docimg2mmax(parser.parse_args())

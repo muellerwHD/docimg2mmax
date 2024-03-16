@@ -7,6 +7,11 @@ from operator import itemgetter
 
 from pymmax2.pyMMAX2 import * 
 from tqdm import tqdm
+
+import pdb
+
+breakpoints = False
+
 PROGBARWIDTH    =   100
 
 def extract_drawable_markup(png_files, mmax2_disc, min_markup_percentage):
@@ -17,13 +22,19 @@ def extract_drawable_markup(png_files, mmax2_disc, min_markup_percentage):
         seq_count=0
         string_matches = {}
         # Go over all ocr_word markables
-        for m in [m for m in mmax2_disc.get_level('ocr_words').get_markables() if int(m.get_attributes()['page_no'])==page_no]:
+        for m in [m for m in mmax2_disc.get_level('ocr_words').get_markables() 
+                  if int(m.get_attributes()['page_no'])==page_no]:
+
             # Extract markup intensity
             mku=float(m.get_attributes().get('markup','0'))
+
             if mku<int(min_markup_percentage):
                 # Current m is not marked-up. Write existing sequence, if any.
+
                 if markup_bd_sequence!=[]:
+
                     ocr_words_at_match_bds=[]
+
                     # single_match_elements is a list of bd ids that were matched.
                     # Go over all bd_elements in current match (mostly only one)
                     for bd_elem in markup_bd_sequence:
@@ -104,7 +115,8 @@ def create_html_document(drawable_data_per_page, save_as, mmax2_disc, margin_wid
             ' .underline { stroke-width: 3; stroke: green; }\n'\
             ' .labelline { stroke-width: 3; stroke: black; }\n'\
             ' .text      { fill: black; font: normal 38px sans-serif; background: orange; }\n'\
-            '  </style>\n</head>\n<body>\n<main>', file=html_out)
+            '  </style>\n</head>\n<body>\n<main>', 
+              file=html_out)
         # Go over all pages (some might not have anything to draw)
         for page_no in drawable_data_per_page:
             page_path = drawable_data_per_page[str(page_no)][1]
@@ -168,13 +180,13 @@ def create_html_document(drawable_data_per_page, save_as, mmax2_disc, margin_wid
                             matched_terms_on_right[search_string]=[ocr_words_at_match_bds]
 
             # This calculates the stepsize on the basis of the actual number of labels 
-            try:                        
+            try:
                 stepsize_left   = 1 / (len(matched_terms_on_left)+1)
-            except ZeroDivisionError:   
+            except ZeroDivisionError:
                 stepsize_left   = 0
-            try:                        
+            try:
                 stepsize_right  = 1 / (len(matched_terms_on_right)+1)
-            except ZeroDivisionError:   
+            except ZeroDivisionError:
                 stepsize_right  = 0
 
             # Start at 1 to prevent 0 y pos
@@ -359,34 +371,51 @@ def extract_markup(page_img_path, mmax2_disc, page_no, vertical=True, horizontal
 
 
 # Effectively a wrapper for tesseract.
-def png_to_hocr(png_file="", tess_args=[], outfile_name='.'+os.path.sep+'tessout.tmp', 
-    normalize_unicode=True, page_no=-1, decolor=False, grey_thresh=50, black_thresh=100, verbose=False):
+def png_to_hocr(png_file="", 
+                tess_args=[], 
+                outfile_name='.'+os.path.sep+'tessout.tmp', 
+                normalize_unicode=True, 
+                page_no=-1, 
+                decolor=False, 
+                grey_thresh=50, 
+                black_thresh=100, 
+                verbose=False):
+
     if verbose: 
-        print("    png_to_hocr: "+str(os.path.basename(png_file))+" ...", file=sys.stderr)
+        print("    png_to_hocr: "+str(os.path.basename(png_file))+" ...", 
+              file=sys.stderr)
+
     if decolor:
         # Name of decolorized page image file. File will be reused if possible
         pathlabel="decol_gt"+str(grey_thresh)+"_bt"+str(black_thresh)
         decol_png_file = str(Path(png_file).parent)+os.path.sep+pathlabel+os.path.sep+os.path.basename(png_file)
+
         if not os.path.exists(decol_png_file):
             png_file = decolor_image(png_file, grey_thresh=grey_thresh, black_thresh=black_thresh)
         else:
             if verbose: print("    Using existing image in /"+pathlabel+"/", file=sys.stderr)
             png_file=decol_png_file
-    targs=['tesseract', png_file, outfile_name]
+
+    targs=['tesseract', png_file, outfile_name ]
     targs.extend(tess_args)
+
     if verbose:
         print("Tesseract command line: %s" % targs)
         print(" ".join(targs))
         print("     ## tesseract output ##", file=sys.stderr)
     res=subprocess.run(targs, capture_output=True).stderr.decode(sys.getfilesystemencoding()).strip()
+
     if verbose:
         for z in res.split("\n"):
             print("      "+z, file=sys.stderr)
         print("     ## tesseract output ##", file=sys.stderr)
+
     with open (outfile_name+".hocr", "r") as myfile:
         r="".join(myfile.readlines())
+
     if normalize_unicode:
         r=unicodedata.normalize('NFKD', r)
+
     return r
 
 # Convert string in hocr format (producd ed by e.g. tesseract) into MMAX2 basedata, 
@@ -407,33 +436,68 @@ def hocr_to_mmax2(hocr_string,
     hocr_soup = bs(hocr_string, 'lxml')
 
     # Go over all spans of class 'ocr_line'. Each has the line words as its children.
-    if debug or True: 
+    if debug: 
         print(hocr_soup)
 
     line_spans = [s for s in hocr_soup.descendants 
                   if s.name == 'span' and 'ocr_line' in s['class']]
+
+    print("""LAF
+%s
+LAF
+
+
+""" % line_spans) 
+
+
     for line_span in line_spans:
-        line_string,stringindex2wordid,wordid2title,wordid2charconfs,wordid2worstcharconf,wordid2charbboxes=\
+
+        print("One line span: %s" % line_span)
+        if breakpoints:
+            breakpoint()
+
+        line_string,\
+            stringindex2wordid,\
+            wordid2title,\
+            wordid2charconfs,\
+            wordid2worstcharconf,\
+            wordid2charbboxes=\
                 analyse_hocr_line_span(line_span, 
                                        ignore_empty_chars=ignore_empty_chars, 
                                        split_merged_chars=split_merged_chars)
-        print ("Line Span:   _%s_ " % line_span)
-        print ("Line String: _%s_ " % line_string)
-        if line_string.strip() == "":   continue
+        if breakpoints:
+            breakpoint()
+        print ("After analyse Line Span:   \n_%s_\n / Line Span\n\n " % line_span)
+
+        if line_string.strip() == "":
+            print("!!!!!!!!!!!!!!empty line_string _%s_" % line_string)
+            continue
 
         if normalize_variants:
             for bf,af in dc_constants.char_mappings:
                 line_string = line_string.replace(bf,af)
 
+        print ("Line String: _%s_ " % line_string)
+        if breakpoints:
+            breakpoint()
         # Line has been built up. Now create bd elements ...
-        line_bd_ids = mmax2_disc.get_basedata().add_elements_from_string(line_string, isolate_numbers=separate_numbers)
+        line_bd_ids = mmax2_disc.get_basedata().add_elements_from_string(line_string, 
+                                                                         isolate_numbers=separate_numbers)
+        
+        if breakpoints:
+            print("line_bd_ids %s" % line_bd_ids)
+            breakpoint()
         # ... and re-render line.
-        rendered, _, _, mapping = mmax2_disc.get_basedata().render_string(for_ids=[line_bd_ids], mapping=True)
+        rendered, _, _, mapping = mmax2_disc.get_basedata().render_string_impl(for_ids=[line_bd_ids], mapping=True)
+        if breakpoints:
+            breakpoint()
         last_id = None
         current_ocr_span=[] # Collect (index, id) tuples of spans mapped to the same ocr word
         current_bd_span=[]
         # Go over all positions in ocr string
         for i in sorted(stringindex2wordid.keys()):
+            if breakpoints:
+                breakpoint()
             if last_id and stringindex2wordid[i] != last_id:
                 # Current span ends. Collect bd_ids mapped to this ocr_word, in case an ocr token yielded more than one bd element.
                 for (j,_) in current_ocr_span:
@@ -463,7 +527,8 @@ def hocr_to_mmax2(hocr_string,
             # Collect in current ocr span
             current_ocr_span.append((i,stringindex2wordid[i]))
             last_id = stringindex2wordid[i]
-
+        if breakpoints:
+            breakpoint()
         # All string positions in line_span have been processed
         # Create markable for last pending ocr_span
         for (j,_) in current_ocr_span:
@@ -472,6 +537,11 @@ def hocr_to_mmax2(hocr_string,
                     current_bd_span.append(mapping[j])
             except KeyError:
                 pass
+
+        if breakpoints:
+            print("BDSPAN %s" % current_bd_span)
+            breakpoint()
+
         was_added, m = mmax2_disc.get_level("ocr_words").add_markable([current_bd_span], allow_duplicate_spans=False)
         assert was_added
         # Here, use atts from current id (last val of i)
@@ -495,40 +565,65 @@ def hocr_to_mmax2(hocr_string,
 
 
 
-def analyse_hocr_line_span(line_span, ignore_empty_chars=False, split_merged_chars=False):
+def analyse_hocr_line_span(line_span, 
+                           ignore_empty_chars=False, 
+                           split_merged_chars=False):
     line_string = ""
-    stringindex2wordid, wordid2title, wordid2charconfs, wordid2charbboxes, wordid2worstcharconf = {}, {}, {}, {}, {}
+    stringindex2wordid, \
+    wordid2title, \
+    wordid2charconfs, \
+    wordid2charbboxes, \
+    wordid2worstcharconf = {}, {}, {}, {}, {}
+
+    print("LINESPAN%s/LINESPAN" % line_span)
+
     for word_span in [s for s in line_span.descendants 
                       if s.name == 'span' and 'ocrx_word' in s['class']]:
 
-        print("WORDSPAN%s/WORDSPAN" % word_span)
+        if breakpoints:
+            print("WORDSPAN%s/WORDSPAN" % word_span)
+            breakpoint()
 
-        word_text, char_confs, char_bboxes="","",""
+        word_text = ""
+        char_confs = ""
+        char_bboxes = ""
         worst_char_conf = 100
+
         for c in [d for d in word_span.descendants 
                   if d.name=='span' and 'ocrx_cinfo' in d['class']]:
-            print("DESCENDANT%s/DESCENDANT" % word_span)
+
+            if breakpoints:
+                print("DESCENDANT%s/DESCENDANT" % word_span)
+                breakpoint()
+
             # Build up word from single chars
             if ignore_empty_chars and len(c.text.strip())==0:
                 continue
             if split_merged_chars:
                 if len(c.text)==1:
+
                     # Nothing to split
-                    word_text=word_text+c.text
+                    word_text = word_text + c.text
+
                     # Collect char level confs normally
                     char_conf       =   int(c['title'].split(" ")[-1].split(".")[0])
+
                     if char_conf < worst_char_conf:
                         worst_char_conf=char_conf
+
                     char_confs      =   char_confs  + str(char_conf)+","
                     char_bboxes     =   char_bboxes + c['title'].split(";")[0][9:]+","
 
                 elif len(c.text)==2:
                     # Collect both chars for final string
-                    word_text=word_text+c.text
+                    word_text = word_text + c.text
+
                     # Get conf of merged char, which will be used for both after splitting
                     char_conf       =   int(c['title'].split(" ")[-1].split(".")[0])
+
                     if char_conf < worst_char_conf:
                         worst_char_conf=char_conf
+
                     # Add twice to char_conf xml string
                     char_confs      =   char_confs + str(char_conf) + "," + str(char_conf) + ","
 
@@ -544,31 +639,46 @@ def analyse_hocr_line_span(line_span, ignore_empty_chars=False, split_merged_cha
                 else:
                     print(c.text, "is more than **two** chars, cannot split ...", file=sys.stderr)
             else:
-                # No special treatment for ligatures, this will produce recall errors for certain oem modes
+                # No special treatment for ligatures, this will produce 
+                # recall errors for certain oem modes
                 try:
+
                     assert len(c.text)==1
-                    word_text=word_text+c.text                
+                    word_text = word_text + c.text
+
                 except AssertionError:
+
                     # print(c.text, "is more than one char, trimming ...")
-                    word_text=word_text+c.text[0]
+                    word_text = word_text + c.text[0]
 
                 # Collect char level confs
                 char_conf       =   int(c['title'].split(" ")[-1].split(".")[0])
+
                 if char_conf < worst_char_conf:
                     worst_char_conf=char_conf
+
                 char_confs      =   char_confs  + str(char_conf)+","
                 char_bboxes     =   char_bboxes + c['title'].split(";")[0][9:]+","
+
+            print("CURRENT WORDTEXT %s" % word_text)
 
         # word has been built up
         wordid2charconfs[word_span['id']]               = char_confs[0:-1]  # Cut off last comma
         wordid2charbboxes[word_span['id']]              = char_bboxes[0:-1]  # Cut off last comma
         wordid2worstcharconf[word_span['id']]           = str(worst_char_conf)
+
+        if breakpoints:
+            print("WORDTEXT _%s_" % word_text)
+            breakpoint()
+
         for i in range(len(word_text)):
             # Map org string pos to word_id
             stringindex2wordid[len(line_string)+i+1]    = word_span['id']  # Add one for leading space
             wordid2title[word_span['id']]               = word_span['title']
+
         # Build line rep with standard space-based separators, to be used as input to add_elements_from_string method
         line_string=line_string+" "+word_text
+
     return line_string, stringindex2wordid, wordid2title, wordid2charconfs, wordid2worstcharconf, wordid2charbboxes
 
 def get_chunks(l, n):
