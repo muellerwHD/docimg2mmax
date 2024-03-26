@@ -119,7 +119,7 @@ def docimg2mmax_worker(args, folder_chunk, mmax2_target_folder, proc_namespace):
         mmax2_disc.get_level('text_words').write(to_path=mmax2_disc.get_mmax2_path()+mmax2_disc.get_markable_path(),
                                                  overwrite=True,
                                                  no_backup=True)
-        assert(1==0) # continue coding here
+        # assert(1==0) # WM continue coding here
         mmax2_disc.get_level('named_entities').write(to_path=mmax2_disc.get_mmax2_path()+mmax2_disc.get_markable_path(),
                                                  overwrite=True,
                                                  no_backup=True)
@@ -127,6 +127,7 @@ def docimg2mmax_worker(args, folder_chunk, mmax2_target_folder, proc_namespace):
               file=sys.stderr)
 
 def docimg2mmax(args):
+    assert(False) # add in way to have mmax files for each file 
     # Create folders, if neccessary
     if not os.path.exists(args.tmp_path):
         os.mkdir(args.tmp_path)
@@ -149,7 +150,9 @@ def docimg2mmax(args):
 
     if not trace_it:
 
-        for folder_chunk in get_chunks(sorted([os.path.dirname(f) for f in glob(args.img_folders)]), int(args.workers)):
+        for folder_chunk in get_chunks(sorted([os.path.dirname(f) 
+                                               for f in glob(args.img_folders)]), 
+                                       int(args.workers)):
             p = Process(target=docimg2mmax_worker,
                         args=(args,
                               folder_chunk,
@@ -160,7 +163,9 @@ def docimg2mmax(args):
             for p in procs: p.join()
 
     else:
-        for folder_chunk in get_chunks(sorted([os.path.dirname(f) for f in glob(args.img_folders)]), int(args.workers)):
+        for folder_chunk in get_chunks(sorted([os.path.dirname(f) 
+                                               for f in glob(args.img_folders)]), 
+                                       int(args.workers)):
             print("SERIAL")
             docimg2mmax_worker(args,
                                folder_chunk,

@@ -24,6 +24,7 @@ def extract_drawable_markup(png_files, mmax2_disc, min_markup_percentage):
         # Go over all ocr_word markables
         for m in [m for m in mmax2_disc.get_level('ocr_words').get_markables() 
                   if int(m.get_attributes()['page_no'])==page_no]:
+            print("DRAWABLE MARKUP MARKABLE" % m)
 
             # Extract markup intensity
             mku=float(m.get_attributes().get('markup','0'))
@@ -330,6 +331,9 @@ def extract_markup(page_img_path, mmax2_disc, page_no, vertical=True, horizontal
         # This will only check *words* for highlighting (not the other way round)
         # Section-level highlighting in blank areas will be ignored.
         for wo in [a for a in mmax2_disc.get_level('ocr_words').get_markables() if a.get_attributes()['page_no'] == str(page_no)]:
+
+            print("TO BE MARKED WORD: %s" % wo)
+
             wo.update_attributes({'markup': '0'})
             # Get word bbox (0,0 is top-left)
             l,t,r,b = map(int,wo.get_attributes()['word_bbox'].split(" "))
@@ -364,6 +368,8 @@ def extract_markup(page_img_path, mmax2_disc, page_no, vertical=True, horizontal
                 if hl_val > 0:
                     # Get all still unmarked ocr_words in current line (word-level highlighting has preference over line-level)
                     for aw in [m for m in line_markable.get_associated_markables('ocr_words') if m.get_attributes()['markup']=='0']:
+                        print("TO BE MARKED WORD VERTICAL: %s" % wo)
+
                         aw.update_attributes({'markup': str(round(hl_val,4))})
                         aw.update_attributes({'markup_type': 'line'})
                         aw.update_attributes({'markup_color' : str(maxr)+":"+str(maxg)+":"+str(maxb)})
